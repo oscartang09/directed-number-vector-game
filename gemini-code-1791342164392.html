@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Directed Number Vector Quest</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #f59e0b; /* Glowing Amber target number */
+      --pos-vec: #10b981; /* Emerald Green (+) */
+      --neg-vec: #6366f1; /* Indigo Blue (-) */
+      --correct: #22c55e;
+      --wrong: #ef4444;
+      --border: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: clamp(8px, 2vw, 24px);
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 900px;
+      height: 100%;
+      max-height: 950px;
+      display: flex;
+      flex-direction: column;
+      gap: clamp(10px, 2.5vh, 20px);
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      padding: 12px 20px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+    }
+
+    .title {
+      font-size: clamp(1rem, 2.5vw, 1.25rem);
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      font-size: clamp(0.875rem, 2vw, 1.1rem);
+      font-weight: 600;
+    }
+
+    .q-counter { color: var(--text-muted); }
+    .score-badge { color: var(--correct); }
+
+    /* Target Banner */
+    .target-card {
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: clamp(14px, 3vh, 24px);
+      text-align: center;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .target-label {
+      font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .target-number {
+      font-size: clamp(2.5rem, 7vw, 4.2rem);
+      font-weight: 900;
+      color: var(--primary);
+      text-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+      line-height: 1.1;
+    }
+
+    .instruction-text {
+      font-size: clamp(0.8rem, 2vw, 1rem);
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Feedback Banner */
+    .feedback-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.5rem, 5vw, 2.5rem);
+      font-weight: 800;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      backdrop-filter: blur(8px);
+      z-index: 10;
+    }
+
+    .feedback-overlay.correct {
+      background: rgba(34, 197, 94, 0.9);
+      color: #ffffff;
+      opacity: 1;
+    }
+
+    .feedback-overlay.wrong {
+      background: rgba(239, 68, 68, 0.9);
+      color: #ffffff;
+      opacity: 1;
+    }
+
+    /* Number Line Canvas Container */
+    .number-line-container {
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: clamp(12px, 2.5vh, 24px) 12px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      touch-action: none;
+    }
+
+    .drop-zone-highlight {
+      position: absolute;
+      top: 10px;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      border: 2px dashed rgba(245, 158, 11, 0.4);
+      border-radius: 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .number-line-container.drag-over .drop-zone-highlight {
+      opacity: 1;
+      background: rgba(245, 158, 11, 0.05);
+    }
+
+    svg {
+      width: 100%;
+      height: clamp(120px, 22vh, 180px);
+      overflow: visible;
+    }
+
+    /* SVG Elements */
+    .line-axis { stroke: #64748b; stroke-width: 4; stroke-linecap: round; }
+    .tick { stroke: #64748b; stroke-width: 2.5; }
+    .tick-zero { stroke: #f8fafc; stroke-width: 3.5; }
+    .tick-text { fill: #94a3b8; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .tick-text-zero { fill: #f8fafc; font-size: 15px; font-weight: 800; }
+
+    .vector-arrow {
+      stroke-width: 6;
+      stroke-linecap: round;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .vector-pos { stroke: var(--pos-vec); fill: var(--pos-vec); }
+    .vector-neg { stroke: var(--neg-vec); fill: var(--neg-vec); }
+
+    /* Vector Options Grid */
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: clamp(10px, 2vw, 16px);
+    }
+
+    @media (min-width: 640px) {
+      .options-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .option-card {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: clamp(14px, 2.5vh, 22px) 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: grab;
+      touch-action: none;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .option-card:active {
+      cursor: grabbing;
+      transform: scale(0.96);
+    }
+
+    .option-card.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+    }
+
+    .option-card.pos { border-bottom: 4px solid var(--pos-vec); }
+    .option-card.neg { border-bottom: 4px solid var(--neg-vec); }
+
+    .option-val {
+      font-size: clamp(1.4rem, 4vw, 2.2rem);
+      font-weight: 800;
+    }
+
+    .option-card.pos .option-val { color: var(--pos-vec); }
+    .option-card.neg .option-val { color: var(--neg-vec); }
+
+    .option-icon {
+      font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Drag Ghost Element */
+    .drag-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      transform: translate(-50%, -50%) scale(1.1);
+      background: var(--card-bg);
+      border: 3px solid var(--primary);
+      border-radius: 16px;
+      padding: 16px 28px;
+      box-shadow: 0 20px 30px rgba(0,0,0,0.5);
+      opacity: 0.95;
+    }
+
+    /* Game Over Modal */
+    .game-over-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .game-over-modal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px 24px;
+      text-align: center;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .modal-title {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: var(--primary);
+    }
+
+    .modal-score {
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--text);
+      margin: 16px 0;
+    }
+
+    .restart-btn {
+      background: var(--primary);
+      color: #000000;
+      font-size: 1.1rem;
+      font-weight: 800;
+      border: none;
+      border-radius: 14px;
+      padding: 14px 32px;
+      cursor: pointer;
+      width: 100%;
+      transition: transform 0.1s ease, background 0.2s ease;
+    }
+
+    .restart-btn:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="title">Vector Quest</div>
+      <div class="stats">
+        <span class="q-counter">Q: <span id="current-q">1</span>/20</span>
+        <span class="score-badge">Score: <span id="score-val">0</span></span>
+      </div>
+    </header>
+
+    <!-- Target Banner -->
+    <div class="target-card">
+      <div class="target-label">Target Directed Number</div>
+      <div class="target-number" id="target-display">+0</div>
+      <div class="instruction-text">Lift & drop the matching vector onto the number line</div>
+      <div class="feedback-overlay" id="feedback-overlay">Correct!</div>
+    </div>
+
+    <!-- Number Line Container -->
+    <div class="number-line-container" id="drop-zone">
+      <div class="drop-zone-highlight"></div>
+      <svg id="number-line-svg" viewBox="0 0 800 140" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arrow-right" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--pos-vec)" />
+          </marker>
+          <marker id="arrow-left" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--neg-vec)" />
+          </marker>
+        </defs>
+
+        <!-- Main Axis -->
+        <line x1="40" y1="90" x2="760" y2="90" class="line-axis" />
+
+        <!-- Ticks and Labels generated by JS -->
+        <g id="ticks-group"></g>
+
+        <!-- Animated Vector Line -->
+        <g id="vector-group"></g>
+      </svg>
+    </div>
+
+    <!-- 4 Vector Options -->
+    <div class="options-grid" id="options-container">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div class="game-over-modal" id="game-over-modal">
+    <div class="modal-content">
+      <div class="modal-title">Quiz Completed!</div>
+      <p style="color: var(--text-muted)">Your final score is:</p>
+      <div class="modal-score" id="final-score">0 / 20</div>
+      <button class="restart-btn" onclick="restartGame()">Play Again</button>
+    </div>
+  </div>
+
+  <script>
+    // Web Audio Synthesizer
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new AudioCtx();
+    }
+
+    function playTone(freq, type, duration) {
+      try {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function playSound(isCorrect) {
+      if (isCorrect) {
+        playTone(523.25, 'sine', 0.15); // C5
+        setTimeout(() => playTone(659.25, 'sine', 0.25), 100); // E5
+      } else {
+        playTone(220, 'sawtooth', 0.2); // A3
+        setTimeout(() => playTone(185, 'sawtooth', 0.3), 150); // F#3
+      }
+    }
+
+    // Question Pool (20 Questions)
+    const questions = [
+      { target: 5, options: [+5, -5, +3, -2] },
+      { target: -4, options: [-4, +4, -2, +6] },
+      { target: 3, options: [+3, -3, +7, -5] },
+      { target: -7, options: [-7, +7, -3, +4] },
+      { target: 8, options: [+8, -8, +5, -6] },
+      { target: -2, options: [-2, +2, -8, +3] },
+      { target: 6, options: [+6, -6, +9, -4] },
+      { target: -9, options: [-9, +9, -5, +2] },
+      { target: 1, options: [+1, -1, +4, -3] },
+      { target: -5, options: [-5, +5, -1, +8] },
+      { target: 7, options: [+7, -7, +2, -9] },
+      { target: -3, options: [-3, +3, -6, +5] },
+      { target: 4, options: [+4, -4, +8, -7] },
+      { target: -8, options: [-8, +8, -4, +1] },
+      { target: 2, options: [+2, -2, +6, -5] },
+      { target: -6, options: [-6, +6, -9, +3] },
+      { target: 9, options: [+9, -9, +7, -2] },
+      { target: -1, options: [-1, +1, -3, +5] },
+      { target: 10, options: [+10, -10, +6, -8] },
+      { target: -10, options: [-10, +10, -7, +4] }
+    ];
+
+    let currentQIndex = 0;
+    let score = 0;
+    let isTransitioning = false;
+
+    // SVG Layout Configuration
+    const svgWidth = 800;
+    const originX = 400; // Center 0
+    const tickSpacing = 32; // Pixels per unit (-10 to +10)
+    const axisY = 90;
+
+    function getX(val) {
+      return originX + val * tickSpacing;
+    }
+
+    // Render SVG Number Line Ticks
+    function setupNumberLine() {
+      const ticksGroup = document.getElementById('ticks-group');
+      ticksGroup.innerHTML = '';
+
+      for (let i = -10; i <= 10; i++) {
+        const x = getX(i);
+        const isZero = i === 0;
+
+        // Tick mark
+        const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tick.setAttribute('x1', x);
+        tick.setAttribute('y1', axisY - (isZero ? 12 : 7));
+        tick.setAttribute('x2', x);
+        tick.setAttribute('y2', axisY + (isZero ? 12 : 7));
+        tick.setAttribute('class', isZero ? 'tick-zero' : 'tick');
+        ticksGroup.appendChild(tick);
+
+        // Tick label
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', axisY + 30);
+        text.setAttribute('class', isZero ? 'tick-text-zero' : 'tick-text');
+        text.textContent = i > 0 ? `+${i}` : `${i}`;
+        ticksGroup.appendChild(text);
+      }
+    }
+
+    // Draw Vector Arrow on Number Line
+    function drawVector(val) {
+      const vectorGroup = document.getElementById('vector-group');
+      vectorGroup.innerHTML = '';
+
+      if (val === 0) return;
+
+      const startX = getX(0);
+      const endX = getX(val);
+      const isPositive = val > 0;
+      const markerId = isPositive ? 'arrow-right' : 'arrow-left';
+      const colorClass = isPositive ? 'vector-pos' : 'vector-neg';
+
+      // Vector Arrow Line
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', startX);
+      line.setAttribute('y1', axisY - 35);
+      line.setAttribute('x2', endX);
+      line.setAttribute('y2', axisY - 35);
+      line.setAttribute('class', `vector-arrow ${colorClass}`);
+      line.setAttribute('marker-end', `url(#${markerId})`);
+      vectorGroup.appendChild(line);
+
+      // Start origin dot
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', startX);
+      dot.setAttribute('cy', axisY - 35);
+      dot.setAttribute('r', '5');
+      dot.setAttribute('fill', isPositive ? 'var(--pos-vec)' : 'var(--neg-vec)');
+      vectorGroup.appendChild(dot);
+    }
+
+    function clearVector() {
+      document.getElementById('vector-group').innerHTML = '';
+    }
+
+    // Load Question
+    function loadQuestion() {
+      isTransitioning = false;
+      clearVector();
+
+      const q = questions[currentQIndex];
+      document.getElementById('current-q').textContent = currentQIndex + 1;
+      document.getElementById('target-display').textContent = q.target > 0 ? `+${q.target}` : `${q.target}`;
+
+      // Shuffle options copy
+      const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
+
+      const optionsContainer = document.getElementById('options-container');
+      optionsContainer.innerHTML = '';
+
+      shuffledOptions.forEach(val => {
+        const isPos = val > 0;
+        const card = document.createElement('div');
+        card.className = `option-card ${isPos ? 'pos' : 'neg'}`;
+        card.dataset.value = val;
+
+        const valText = document.createElement('div');
+        valText.className = 'option-val';
+        valText.textContent = isPos ? `+${val}` : `${val}`;
+
+        const iconText = document.createElement('div');
+        iconText.className = 'option-icon';
+        iconText.textContent = isPos ? 'Vector Right ➔' : '⬅ Vector Left';
+
+        card.appendChild(valText);
+        card.appendChild(iconText);
+
+        // Tap to select / drop
+        card.addEventListener('click', () => handleSelection(val));
+
+        // Setup Drag & Drop touch / mouse listeners
+        setupDragAndDrop(card, val);
+
+        optionsContainer.appendChild(card);
+      });
+    }
+
+    // Drag & Drop Implementation
+    let activeGhost = null;
+
+    function setupDragAndDrop(card, val) {
+      const dropZone = document.getElementById('drop-zone');
+
+      const onPointerDown = (e) => {
+        if (isTransitioning) return;
+        initAudio();
+
+        const rect = card.getBoundingClientRect();
+        activeGhost = card.cloneNode(true);
+        activeGhost.className = 'drag-ghost';
+        activeGhost.style.left = `${e.clientX || e.touches[0].clientX}px`;
+        activeGhost.style.top = `${e.clientY || e.touches[0].clientY}px`;
+        document.body.appendChild(activeGhost);
+
+        dropZone.classList.add('drag-over');
+
+        const onPointerMove = (moveEvt) => {
+          if (!activeGhost) return;
+          const cx = moveEvt.clientX || (moveEvt.touches && moveEvt.touches[0].clientX);
+          const cy = moveEvt.clientY || (moveEvt.touches && moveEvt.touches[0].clientY);
+          activeGhost.style.left = `${cx}px`;
+          activeGhost.style.top = `${cy}px`;
+        };
+
+        const onPointerUp = (upEvt) => {
+          document.removeEventListener('pointermove', onPointerMove);
+          document.removeEventListener('touchmove', onPointerMove);
+          document.removeEventListener('pointerup', onPointerUp);
+          document.removeEventListener('touchend', onPointerUp);
+
+          dropZone.classList.remove('drag-over');
+
+          if (activeGhost) {
+            activeGhost.remove();
+            activeGhost = null;
+          }
+
+          const cx = upEvt.clientX || (upEvt.changedTouches && upEvt.changedTouches[0].clientX);
+          const cy = upEvt.clientY || (upEvt.changedTouches && upEvt.changedTouches[0].clientY);
+
+          const dzRect = dropZone.getBoundingClientRect();
+          if (cx >= dzRect.left && cx <= dzRect.right && cy >= dzRect.top && cy <= dzRect.bottom) {
+            handleSelection(val);
+          }
+        };
+
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('touchmove', onPointerMove, { passive: false });
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('touchend', onPointerUp);
+      };
+
+      card.addEventListener('pointerdown', onPointerDown);
+    }
+
+    // Handle Answer
+    function handleSelection(selectedValue) {
+      if (isTransitioning) return;
+      isTransitioning = true;
+
+      const q = questions[currentQIndex];
+      const isCorrect = selectedValue === q.target;
+
+      if (isCorrect) score++;
+      document.getElementById('score-val').textContent = score;
+
+      // Draw vector arrow
+      drawVector(selectedValue);
+
+      // Play sound
+      playSound(isCorrect);
+
+      // Feedback Overlay
+      const overlay = document.getElementById('feedback-overlay');
+      overlay.textContent = isCorrect ? 'Correct!' : 'Incorrect!';
+      overlay.className = `feedback-overlay ${isCorrect ? 'correct' : 'wrong'}`;
+
+      setTimeout(() => {
+        overlay.className = 'feedback-overlay';
+        currentQIndex++;
+
+        if (currentQIndex < questions.length) {
+          loadQuestion();
+        } else {
+          showGameOver();
+        }
+      }, 1300);
+    }
+
+    function showGameOver() {
+      document.getElementById('final-score').textContent = `${score} / 20`;
+      document.getElementById('game-over-modal').classList.add('show');
+    }
+
+    function restartGame() {
+      currentQIndex = 0;
+      score = 0;
+      document.getElementById('score-val').textContent = score;
+      document.getElementById('game-over-modal').classList.remove('show');
+      loadQuestion();
+    }
+
+    // Initialize Game
+    setupNumberLine();
+    loadQuestion();
+  </script>
+</body>
+</html>
